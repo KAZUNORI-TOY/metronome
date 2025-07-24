@@ -2,7 +2,8 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>拡張メトロノーム（区間別リズム設定付き）</title>
+  <title>拡張メトロノーム（縦配置）</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body {
       background: #111;
@@ -10,10 +11,11 @@
       font-family: sans-serif;
       padding: 2rem;
       display: flex;
-      gap: 2rem;
-      justify-content: center;
-      align-items: flex-start;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
       min-height: 100vh;
+      box-sizing: border-box;
     }
     canvas {
       background: #222;
@@ -26,6 +28,7 @@
       flex-direction: column;
       gap: 1rem;
       min-width: 320px;
+      margin-top: 2rem;
     }
     .bpm-controls {
       display: flex;
@@ -116,7 +119,10 @@
   </style>
 </head>
 <body>
+  <canvas id="metronome" width="400" height="400"></canvas>
+
   <div class="controls">
+    <!-- BPM コントロール -->
     <div class="bpm-controls">
       <label for="bpm-value">BPM:</label>
       <button id="bpm-down">−</button>
@@ -124,6 +130,7 @@
       <button id="bpm-up">＋</button>
     </div>
 
+    <!-- 各セクション設定 -->
     <div class="section-control" data-set="0">
       <button class="section-btn selected">1～4小節</button>
       <label>リズム
@@ -212,11 +219,8 @@
         </select>
       </label>
     </div>
-
     <button id="startStop">スタート</button>
   </div>
-
-  <canvas id="metronome" width="400" height="400"></canvas>
 
   <script>
     const canvas = document.getElementById("metronome");
@@ -230,9 +234,7 @@
     const sectionControls = document.querySelectorAll(".section-control");
     const sectionButtons = document.querySelectorAll(".section-btn");
 
-    // AudioContextの初期化はユーザー操作後にするためnullで初期化
     let audioCtx = null;
-
     let running = false;
     let angle = -Math.PI / 2;
     let lastTime = 0;
@@ -240,7 +242,6 @@
     let bpm = 60;
     let rotationSpeed = 2 * Math.PI * bpm / 60;
 
-    // 各区間の設定を保持する配列
     let settingsSequence = [
       { subdivision: 3, secondSubdivision: 0 },
       { subdivision: 2, secondSubdivision: 2 },
@@ -248,39 +249,30 @@
       { subdivision: 4, secondSubdivision: 4 },
     ];
 
-    // 現在選択中の区間インデックス
     let currentSetIndex = 0;
-
     let triggerAngles = [];
     let secondTriggerAngles = [];
-
-    // 小節カウント
     let measureCount = 0;
 
-    // UI初期化＆同期
     function updateUIForSet(setIndex) {
       const sc = sectionControls[setIndex];
       sc.querySelector(".subdivision-select").value = settingsSequence[setIndex].subdivision;
       sc.querySelector(".second-subdivision-select").value = settingsSequence[setIndex].secondSubdivision;
-      // 選択ボタンのハイライト同期
       sectionButtons.forEach(btn => btn.classList.remove("selected"));
       sectionButtons[setIndex].classList.add("selected");
     }
 
-    // 現在の設定を描画用に反映
     function applySettings(setIndex) {
       const s = settingsSequence[setIndex];
       subdivision = s.subdivision;
       secondSubdivision = s.secondSubdivision;
       rotationSpeed = 2 * Math.PI * bpm / 60;
 
-      // 第1リズムの角度配列作成
       triggerAngles = [];
       for (let i = 0; i < subdivision; i++) {
         let ang = (2 * Math.PI) * (i / subdivision) - Math.PI / 2;
         triggerAngles.push({ angle: ang, triggered: false });
       }
-      // 第2リズムの角度配列作成
       secondTriggerAngles = [];
       for (let i = 0; i < secondSubdivision; i++) {
         let ang = (2 * Math.PI) * (i / secondSubdivision) - Math.PI / 2;
@@ -289,7 +281,6 @@
       draw();
     }
 
-    // BPM表示更新
     function updateBPMDisplay() {
       bpmValue.textContent = bpm;
       rotationSpeed = 2 * Math.PI * bpm / 60;
@@ -298,9 +289,8 @@
       }
     }
 
-    // 音鳴らし関数
     function playClick(isAccent, isSecond = false) {
-      if (!audioCtx) return; // AudioContext未初期化なら鳴らさない
+      if (!audioCtx) return;
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       osc.connect(gain);
@@ -317,7 +307,6 @@
       osc.stop(audioCtx.currentTime + 0.1);
     }
 
-    // 描画関数
     function draw(flashIndex = -1, secondFlashIndex = -1) {
       const cx = canvas.width / 2;
       const cy = canvas.height / 2;
@@ -325,7 +314,6 @@
       const rInner = 115;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // 第1リズム（外周マーカー）
       for (let i = 0; i < subdivision; i++) {
         const ang = (2 * Math.PI) * (i / subdivision) - Math.PI / 2;
         const mx = cx + rOuter * Math.cos(ang);
@@ -338,7 +326,6 @@
         ctx.fill();
       }
 
-      // 第2リズム（内側マーカー）
       for (let i = 0; i < secondSubdivision; i++) {
         const ang = (2 * Math.PI) * (i / secondSubdivision) - Math.PI / 2;
         const mx = cx + rInner * Math.cos(ang);
@@ -350,21 +337,18 @@
         ctx.shadowBlur = (i === secondFlashIndex) ? 10 : 0;
         ctx.fill();
 
-        // 中心点を背景色で塗りつぶし
         ctx.beginPath();
         ctx.arc(mx, my, 2.5, 0, 2 * Math.PI);
         ctx.fillStyle = "#111";
         ctx.fill();
       }
 
-      // 回転円
       ctx.beginPath();
       ctx.arc(cx, cy, rOuter, 0, 2 * Math.PI);
       ctx.strokeStyle = "#444";
       ctx.lineWidth = 3;
       ctx.stroke();
 
-      // ポインター
       const px = cx + rOuter * Math.cos(angle);
       const py = cy + rOuter * Math.sin(angle);
       ctx.beginPath();
@@ -374,22 +358,18 @@
       ctx.shadowBlur = 10;
       ctx.fill();
 
-      // 中心点
       ctx.beginPath();
       ctx.arc(cx, cy, 5, 0, 2 * Math.PI);
       ctx.fillStyle = "#fff";
       ctx.fill();
     }
 
-    // 角度差計算（ラップ含む）
     function angleDiff(a, b) {
       return Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
     }
 
-    // クリックカウント
     let clickCount = 0;
 
-    // メインループ
     function loop(time) {
       if (!running) return;
       const dt = (time - lastTime) / 1000;
@@ -409,9 +389,7 @@
           flashIndex = i;
           playClick(i === 0, false);
 
-          // クリックカウント増加（第1リズムのみ）
           clickCount++;
-          // 4小節 × subdivision 回のクリックで区間切替
           if (clickCount >= subdivision * 4) {
             clickCount = 0;
             measureCount += 4;
@@ -436,7 +414,6 @@
       requestAnimationFrame(loop);
     }
 
-    // BPMボタンイベント
     bpmUpBtn.onclick = () => {
       if (bpm < 300) bpm++;
       updateBPMDisplay();
@@ -446,10 +423,8 @@
       updateBPMDisplay();
     };
 
-    // セクションボタンのクリックで切替
     sectionButtons.forEach((btn, idx) => {
       btn.onclick = () => {
-        // 選択強調
         sectionButtons.forEach(b => b.classList.remove("selected"));
         btn.classList.add("selected");
         currentSetIndex = idx;
@@ -459,7 +434,6 @@
       };
     });
 
-    // セレクトメニュー変更時に設定更新
     sectionControls.forEach((sc, idx) => {
       sc.querySelector(".subdivision-select").onchange = (e) => {
         settingsSequence[idx].subdivision = parseInt(e.target.value);
@@ -471,7 +445,6 @@
       };
     });
 
-    // スタート／ストップ
     startStopBtn.onclick = async () => {
       if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -492,8 +465,7 @@
       }
     };
 
-    // 最初のUI同期
-    for(let i=0; i < settingsSequence.length; i++){
+    for (let i = 0; i < settingsSequence.length; i++) {
       updateUIForSet(i);
     }
     applySettings(currentSetIndex);
